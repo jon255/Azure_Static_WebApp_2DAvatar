@@ -1,34 +1,94 @@
-let mediaRecorder;
-let audioChunks = [];
-let audioBlob;
-let avatarSynthesizer;  // TTS for the avatar
+// Make sure the Azure Speech SDK script is loaded in your index.html:
+// <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
+
+let recognizer;
+let avatarSynthesizer;  // For Azure avatar TTS
 
 const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
 const statusDiv = document.getElementById('status');
 const remoteVideoDiv = document.getElementById('remoteVideo');
 
-// WARNING: Do NOT use hardcoded keys in production!
-const subscriptionKey = '<YOUR_SPEECH_KEY>';   // Replace with your key
-const serviceRegion = '<YOUR_SPEECH_REGION>';  // Replace with your region
+// WARNING: Never hardcode keys in production!
+const subscriptionKey = "Cn6UKwJAzBFFb6r51vwpQrAeJK1UsfzfMQpQUpOFw8D3n7zeHyBmJQQJ99BBACHYHv6XJ3w3AAAYACOG2jVR";    // Replace with your Speech key
+const serviceRegion = "eastus2";   // Replace with your Azure region
+
+// ---- Streaming Speech Recognition ----
+
+function startStreamingRecognition() {
+    // Initialize speech config
+    const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
+    speechConfig.speechRecognitionLanguage = 'en-US';
+
+    // Use default mic as input
+    const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+
+    recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+
+    // Partial (interim) results
+    recognizer.recognizing = (s, e) => {
+        statusDiv.innerText = `Heard so far: ${e.result.text}`;
+    };
+
+    // Final results
+    recognizer.recognized = (s, e) => {
+        if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+            statusDiv.innerText = `Recognized: ${e.result.text}`;
+            // Instead of speaking immediately, send to backend LLM/agent!
+            sendTextToLLMAgent(e.result.text);
+        } else if (e.result.reason === SpeechSDK.ResultReason.NoMatch) {
+            statusDiv.innerText = "Speech not recognized.";
+        }
+    };
+
+    recognizer.canceled = (s, e) => {
+        statusDiv.innerText = `Recognition canceled: ${e.errorDetails}`;
+        recognizer.close();
+        recognizer = undefined;
+    };
+
+    recognizer.sessionStopped = (s, e) => {
+        statusDiv.innerText += "\nSession stopped.";
+        recognizer.close();
+        recognizer = undefined;
+    };
+
+    recognizer.startContinuousRecognitionAsync(
+        () => {
+            statusDiv.innerText = "Listening (streaming)...";
+        },
+        (err) => {
+            statusDiv.innerText = "Could not start recognition: " + err;
+            console.error(err);
+        }
+    );
+}
+
+function stopStreamingRecognition() {
+    if (recognizer) {
+        recognizer.stopContinuousRecognitionAsync(() => {
+            recognizer.close();
+            recognizer = undefined;
+            statusDiv.innerText = "Stopped listening.";
+        });
+    }
+}
+
+// ---- Azure Avatar TTS ----
 
 function initAvatarSynthesizer() {
-    if (avatarSynthesizer) return; // Only init once
+    if (avatarSynthesizer) return;
 
-    // global SpeechSDK is provided by CDN
-    // eslint-disable-next-line no-undef
+    // WARNING: Do NOT use hardcoded keys in production!
     const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
 
-    // eslint-disable-next-line no-undef
+    // You can change the avatar and style as needed:
     const videoFormat = new SpeechSDK.AvatarVideoFormat();
-
-    // eslint-disable-next-line no-undef
     const avatarConfig = new SpeechSDK.AvatarConfig('lisa', 'casual-sitting', videoFormat);
 
-    // eslint-disable-next-line no-undef
     avatarSynthesizer = new SpeechSDK.AvatarSynthesizer(speechConfig, avatarConfig);
 
-    // If you have special video support, you can mount it here
+    // Set up video element for avatar output (if supported)
     setupAvatarVideoElement();
 }
 
@@ -41,71 +101,8 @@ function setupAvatarVideoElement() {
     videoElement.style.width = '100%';
     videoElement.style.borderRadius = '10px';
     remoteVideoDiv.appendChild(videoElement);
-    // Attach to the SDK only if supported by your version
-    // e.g., avatarSynthesizer.avatarVideoElement = videoElement;
+    // Some SDK versions may allow: avatarSynthesizer.avatarVideoElement = videoElement;
     return videoElement;
-}
-
-startButton.onclick = async function() {
-    startButton.disabled = true;
-    stopButton.disabled = false;
-    statusDiv.innerText = "Listening...";
-
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-
-        mediaRecorder.ondataavailable = function(event) {
-            audioChunks.push(event.data);
-        };
-
-        mediaRecorder.onstop = function() {
-            audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-            audioChunks = [];
-            sendAudioToFunction(audioBlob);
-        };
-
-        mediaRecorder.start();
-    } catch (error) {
-        console.error("Error accessing microphone:", error);
-        statusDiv.innerText = "Error accessing microphone!";
-    }
-};
-
-stopButton.onclick = function() {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-    }
-    startButton.disabled = false;
-    stopButton.disabled = true;
-    statusDiv.innerText = "Stopped listening.";
-};
-
-function sendAudioToFunction(audioBlob) {
-    const reader = new FileReader();
-    reader.onloadend = function() {
-        const audioBase64 = reader.result.split(',')[1];
-        fetch('/api/speechRecognition', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ audio: audioBase64 })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (!data || !data.recognizedText) {
-                statusDiv.innerText = "No speech recognized.";
-                return;
-            }
-            statusDiv.innerText = `Recognized: ${data.recognizedText}`;
-            if (!avatarSynthesizer) initAvatarSynthesizer();
-            speakWithAvatar(data.recognizedText);
-        })
-        .catch(error => {
-            console.error('Error with function:', error);
-            statusDiv.innerText = "Error with recognition!";
-        });
-    };
-    reader.readAsDataURL(audioBlob);
 }
 
 function speakWithAvatar(text) {
@@ -114,7 +111,7 @@ function speakWithAvatar(text) {
         return;
     }
 
-    const ttsVoice = 'en-US-AvaMultilingualNeural';
+    const ttsVoice = 'en-US-AvaMultilingualNeural'; // Customize as needed
     const spokenSsml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="en-US">
                         <voice name="${ttsVoice}">${text}</voice>
                     </speak>`;
@@ -136,3 +133,41 @@ function speakWithAvatar(text) {
         }
     );
 }
+
+// ---- Send text to LLM/Foundry agent ----
+
+function sendTextToLLMAgent(text) {
+    fetch('/api/llmAgent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data && data.reply) {
+            // Avatar speaks the LLM/Foundry reply!
+            if (!avatarSynthesizer) initAvatarSynthesizer();
+            speakWithAvatar(data.reply);
+        } else {
+            statusDiv.innerText = "No reply from agent.";
+        }
+    })
+    .catch(error => {
+        statusDiv.innerText = "Error contacting agent: " + error.message;
+        console.error('LLM/Agent error:', error);
+    });
+}
+
+// ---- Button Handlers ----
+
+startButton.onclick = function() {
+    startButton.disabled = true;
+    stopButton.disabled = false;
+    startStreamingRecognition();
+};
+
+stopButton.onclick = function() {
+    stopButton.disabled = true;
+    startButton.disabled = false;
+    stopStreamingRecognition();
+};
