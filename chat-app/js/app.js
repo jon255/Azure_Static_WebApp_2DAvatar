@@ -142,12 +142,25 @@ function sendTextToLLMAgent(text) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text })
     })
-    .then(response => response.json())
+    .then(async response => {
+        // Step F: Robustly handle empty or invalid JSON
+        const textResponse = await response.text();
+        if (!textResponse) throw new Error('Empty response from backend');
+        let data;
+        try {
+            data = JSON.parse(textResponse);
+        } catch {
+            throw new Error('Invalid JSON from backend: ' + textResponse);
+        }
+        return data;
+    })
     .then(data => {
         if (data && data.reply) {
             // Avatar speaks the LLM/Foundry reply!
             if (!avatarSynthesizer) initAvatarSynthesizer();
             speakWithAvatar(data.reply);
+        } else if (data && data.error) {
+            statusDiv.innerText = "Agent error: " + data.error;
         } else {
             statusDiv.innerText = "No reply from agent.";
         }
