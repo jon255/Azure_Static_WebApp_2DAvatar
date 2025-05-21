@@ -1,98 +1,85 @@
-/* General Styling */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
 body {
-  font-family: 'Arial', sans-serif;
-  background-color: #f4f7fc;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+    font-family: Arial, sans-serif;
+    background-color: #f4f7fc;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
 }
 
-.chat-container {
-  background: #fff;
-  border-radius: 8px;
-  width: 400px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  height: 500px;
-}
-
-.chat-header {
-  background-color: #6200ea;
-  color: white;
-  padding: 10px;
-  text-align: center;
-  border-radius: 8px 8px 0 0;
-}
-
-.chat-box {
-  flex-grow: 1;
-  padding: 10px;
-  overflow-y: auto;
-  border-bottom: 1px solid #ddd;
-}
-
-.input-container {
-  display: flex;
-  padding: 10px;
-  background-color: #fafafa;
-}
-
-input[type="text"] {
-  flex-grow: 1;
-  padding: 10px;
-  border-radius: 5px;
-  border: 1px solid #ddd;
-  outline: none;
+.container {
+    text-align: center;
+    background-color: #fff;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 600px;  /* Limit container size on large screens */
+    box-sizing: border-box;
 }
 
 button {
-  background-color: #6200ea;
-  color: white;
-  border: none;
-  padding: 10px;
-  border-radius: 5px;
-  cursor: pointer;
+    background-color: #6200ea;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 10px;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
 }
 
 button:hover {
-  background-color: #3700b3;
+    background-color: #3700b3;  /* Darker shade for hover effect */
 }
 
-/* Chat Message Styling */
-.message {
-  display: flex;
-  margin-bottom: 10px;
-  align-items: flex-start;
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
 }
 
-.message .avatar {
-  width: 40px;
-  height: 40px;
-  background-color: #6200ea;
-  border-radius: 50%;
-  margin-right: 10px;
+#videoContainer {
+    margin-top: 20px;
 }
 
-.message .text {
-  background-color: #f1f1f1;
-  padding: 10px;
-  border-radius: 10px;
-  max-width: 70%;
+#remoteVideo {
+    width: 100%;
+    height: auto;
+    max-width: 640px;  /* Responsive video size */
+    background-color: black;
+    border-radius: 10px;
+    margin-bottom: 20px; /* Space between video and other elements */
 }
 
-.user-message .avatar {
-  background-color: #03dac6;
+#canvas {
+    display: block;
+    width: 100%;
+    max-width: 640px;  /* Ensure canvas doesn't exceed max video width */
+    height: auto;
+    background-color: transparent;
 }
 
-.user-message .text {
-  background-color: #e1e1e1;
-  margin-left: auto;
+#status {
+    font-size: 18px;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+/* Responsive styles */
+@media (max-width: 600px) {
+    .container {
+        padding: 15px;
+        width: 90%;  /* Allow container to be more fluid on smaller screens */
+    }
+
+    button {
+        width: 100%;  /* Make buttons full width on small screens */
+    }
+
+    #remoteVideo {
+        max-width: 100%;  /* Video and canvas will take the full width on smaller screens */
+    }
 }
