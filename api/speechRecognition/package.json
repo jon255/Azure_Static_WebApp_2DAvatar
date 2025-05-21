@@ -1,0 +1,12 @@
+{
+  "name": "azure-static-web-app-api",
+  "version": "1.0.0",
+  "description": "API backend for Azure Static Web App - Speech to Text",
+  "main": "index.js",
+  "dependencies": {
+    "microsoft-cognitiveservices-speech-sdk": "^1.31.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

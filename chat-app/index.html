@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talk to Azure Avatar</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/style.css">
     <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
 </head>
 <body>
@@ -13,13 +13,11 @@
         <button id="startButton">Start Speaking</button>
         <button id="stopButton" disabled>Stop Speaking</button>
         <div id="status"></div>
-
         <div id="videoContainer">
             <div id="remoteVideo"></div>
             <canvas id="canvas" width="1920" height="1080" style="background-color: transparent;" hidden="hidden"></canvas>
         </div>
     </div>
-
-    <script src="app.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
