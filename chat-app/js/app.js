@@ -4,6 +4,7 @@ const serviceRegion = "eastus2";
 let recognizer;
 let avatarSynthesizer;
 let avatarSessionStarted = false;
+let avatarSpeechQueue = [];
 
 const startButton = document.getElementById('startButton');
 const stopButton  = document.getElementById('stopButton');
