@@ -10,8 +10,8 @@ const statusDiv = document.getElementById('status');
 const remoteVideoDiv = document.getElementById('remoteVideo');
 
 // WARNING: Never hardcode keys in production!
-const subscriptionKey = "Cn6UKwJAzBFFb6r51vwpQrAeJK1UsfzfMQpQUpOFw8D3n7zeHyBmJQQJ99BBACHYHv6XJ3w3AAAYACOG2jVR";    // Replace with your Speech key
-const serviceRegion = "eastus2";          // Replace with your Azure region
+const subscriptionKey = "4tkmVB5Vb9KRW16kPGPpg1F9qOiIcO6GGq1GsPAbCxYYD6LOfPVJJQQJ99BEACYeBjFXJ3w3AAAEACOGIySN";    // Replace with your Speech key
+const serviceRegion = "eastus";          // Replace with your Azure region
 
 // ---- Streaming Speech Recognition ----
 
