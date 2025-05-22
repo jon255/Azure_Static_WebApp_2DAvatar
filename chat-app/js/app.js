@@ -10,6 +10,48 @@ const stopButton  = document.getElementById('stopButton');
 const statusDiv   = document.getElementById('status');
 const remoteVideoDiv = document.getElementById('remoteVideo');
 
+
+// Create Peer Connection ---
+
+function createPeerConnection() {
+    // Create WebRTC peer connection (use public STUN server for demo; Azure returns its own for prod)
+    peerConnection = new RTCPeerConnection({
+        iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
+    });
+
+    // Handle remote tracks for audio/video from the avatar
+    peerConnection.ontrack = function(event) {
+        if (event.track.kind === 'video') {
+            let videoElem = document.querySelector("#remoteVideo video");
+            if (!videoElem) {
+                videoElem = document.createElement('video');
+                videoElem.autoplay = true;
+                videoElem.muted = false;
+                videoElem.playsInline = true;
+                videoElem.style.width = '100%';
+                document.getElementById('remoteVideo').appendChild(videoElem);
+            }
+            videoElem.srcObject = event.streams[0];
+        }
+        if (event.track.kind === 'audio') {
+            let audioElem = document.querySelector("#remoteVideo audio");
+            if (!audioElem) {
+                audioElem = document.createElement('audio');
+                audioElem.autoplay = true;
+                document.getElementById('remoteVideo').appendChild(audioElem);
+            }
+            audioElem.srcObject = event.streams[0];
+        }
+    };
+
+    // Add transceivers so we can receive audio/video
+    peerConnection.addTransceiver('video', { direction: 'recvonly' });
+    peerConnection.addTransceiver('audio', { direction: 'recvonly' });
+
+    return peerConnection;
+}
+
+
 // --- Avatar Init ---
 
 function initAvatarSynthesizer() {
