@@ -13,13 +13,15 @@ const remoteVideoDiv = document.getElementById('remoteVideo');
 
 // Create Peer Connection ---
 
+let peerConnection; // Add this with your global vars!
+
 function createPeerConnection() {
-    // Create WebRTC peer connection (use public STUN server for demo; Azure returns its own for prod)
+    // Create WebRTC peer connection (using Google's public STUN server for demo)
     peerConnection = new RTCPeerConnection({
         iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
     });
 
-    // Handle remote tracks for audio/video from the avatar
+    // Handle incoming video and audio tracks from the avatar
     peerConnection.ontrack = function(event) {
         if (event.track.kind === 'video') {
             let videoElem = document.querySelector("#remoteVideo video");
@@ -44,7 +46,7 @@ function createPeerConnection() {
         }
     };
 
-    // Add transceivers so we can receive audio/video
+    // Add transceivers so we can receive audio and video
     peerConnection.addTransceiver('video', { direction: 'recvonly' });
     peerConnection.addTransceiver('audio', { direction: 'recvonly' });
 
@@ -52,37 +54,43 @@ function createPeerConnection() {
 }
 
 
+
 // --- Avatar Init ---
 
 function initAvatarSynthesizer() {
-    if (avatarSynthesizer && avatarSessionStarted) return;
+    if (avatarSynthesizer && avatarSessionStarted) {
+        // Already running
+        return;
+    }
+
     statusDiv.innerText = "Initializing avatar...";
+
     const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
     const videoFormat = new SpeechSDK.AvatarVideoFormat();
     const avatarConfig = new SpeechSDK.AvatarConfig('lisa', 'casual-sitting', videoFormat);
 
     avatarSynthesizer = new SpeechSDK.AvatarSynthesizer(speechConfig, avatarConfig);
+
+    // Setup and assign the video element!
     remoteVideoDiv.innerHTML = '';
-    const videoElement = document.createElement('video');
-    videoElement.autoplay = true;
-    videoElement.muted = false;
-    videoElement.playsInline = true;
-    videoElement.style.width = '100%';
-    videoElement.style.height = '320px';
-    videoElement.style.borderRadius = '10px';
-    remoteVideoDiv.appendChild(videoElement);
-    avatarSynthesizer.avatarVideoElement = videoElement;
+    // NOTE: Don't create a video element here; let peerConnection.ontrack handle it
 
     avatarSynthesizer.avatarEventReceived = function (s, e) {
         console.log("Avatar event:", e.description);
     };
 
-    avatarSynthesizer.startAvatarAsync().then(
+    // ----------- NEW: WebRTC Peer Connection -------------
+    createPeerConnection();
+    avatarSynthesizer.startAvatarAsync(peerConnection).then(
         (result) => {
             if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
                 avatarSessionStarted = true;
                 statusDiv.innerText = "Avatar ready!";
                 console.log("Avatar session started!");
+                // Speak any queued text
+                while (avatarSpeechQueue.length > 0) {
+                    speakWithAvatar(avatarSpeechQueue.shift());
+                }
             } else {
                 statusDiv.innerText = "Avatar session NOT started!";
                 console.error("Avatar session NOT started. Reason:", result.reason);
@@ -94,6 +102,7 @@ function initAvatarSynthesizer() {
         }
     );
 }
+
 
 // --- TTS with Avatar ---
 
