@@ -1,85 +1,74 @@
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f7fc;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: linear-gradient(120deg, #e9eafc 0%, #e0fcff 100%);
+    min-height: 100vh;
     margin: 0;
-    padding: 0;
 }
 
 .container {
+    background: #fff;
+    border-radius: 18px;
+    max-width: 540px;
+    margin: 48px auto;
+    padding: 36px 30px 32px 30px;
+    box-shadow: 0 12px 28px rgba(80,110,180,0.08), 0 1.5px 4px rgba(0,0,0,0.03);
     text-align: center;
-    background-color: #fff;
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    width: 100%;
-    max-width: 600px;  /* Limit container size on large screens */
-    box-sizing: border-box;
+}
+
+h1 {
+    margin: 0 0 12px 0;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #330099;
+}
+
+#status {
+    margin: 18px 0 16px 0;
+    font-size: 1.1rem;
+    color: #445;
+    min-height: 1.7em;
 }
 
 button {
-    background-color: #6200ea;
-    color: white;
-    padding: 12px 24px;
+    background-color: #5c43e7;
+    color: #fff;
+    padding: 12px 32px;
     border: none;
-    border-radius: 8px;
+    border-radius: 7px;
+    margin: 6px 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
     cursor: pointer;
-    margin: 10px;
-    font-size: 16px;
-    transition: background-color 0.3s ease;
-}
-
-button:hover {
-    background-color: #3700b3;  /* Darker shade for hover effect */
+    box-shadow: 0 1px 3px rgba(50,60,90,0.07);
+    transition: background 0.2s;
 }
 
 button:disabled {
-    background-color: #cccccc;
+    background: #b2b6c6;
     cursor: not-allowed;
 }
 
 #videoContainer {
-    margin-top: 20px;
+    margin: 24px 0 0 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 #remoteVideo {
     width: 100%;
-    height: auto;
-    max-width: 640px;  /* Responsive video size */
-    background-color: black;
-    border-radius: 10px;
-    margin-bottom: 20px; /* Space between video and other elements */
+    max-width: 460px;
+    min-height: 180px;
+    background: #111;
+    border-radius: 14px;
+    overflow: hidden;
+    /* Ensures the video or avatar canvas fits and looks good */
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-#canvas {
-    display: block;
-    width: 100%;
-    max-width: 640px;  /* Ensure canvas doesn't exceed max video width */
-    height: auto;
-    background-color: transparent;
-}
-
-#status {
-    font-size: 18px;
-    font-weight: bold;
-    margin-top: 10px;
-}
-
-/* Responsive styles */
-@media (max-width: 600px) {
-    .container {
-        padding: 15px;
-        width: 90%;  /* Allow container to be more fluid on smaller screens */
-    }
-
-    button {
-        width: 100%;  /* Make buttons full width on small screens */
-    }
-
-    #remoteVideo {
-        max-width: 100%;  /* Video and canvas will take the full width on smaller screens */
-    }
+@media (max-width: 700px) {
+    .container { padding: 14px 2vw; }
+    #remoteVideo { max-width: 98vw; }
 }
