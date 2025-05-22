@@ -11,6 +11,28 @@ const stopButton  = document.getElementById('stopButton');
 const statusDiv   = document.getElementById('status');
 const remoteVideoDiv = document.getElementById('remoteVideo');
 
+// Clean up function
+
+// Clean-up function: call before starting any new avatar session
+function cleanupAvatarSession() {
+    // Close synthesizer
+    if (avatarSynthesizer) {
+        avatarSynthesizer.close();
+        avatarSynthesizer = null;
+    }
+    // Close peer connection (if you're using WebRTC directly)
+    if (window.peerConnection) {
+        window.peerConnection.close();
+        window.peerConnection = null;
+    }
+    // Remove video elements
+    remoteVideoDiv.innerHTML = '';
+    // Reset flags and queues
+    avatarSessionStarted = false;
+    avatarSpeechQueue = [];
+}
+
+
 
 // Create Peer Connection ---
 
@@ -227,6 +249,7 @@ function stopStreamingRecognition() {
 startButton.onclick = function() {
     startButton.disabled = true;
     stopButton.disabled = false;
+    cleanupAvatarSession();
     initAvatarSynthesizer();
     startStreamingRecognition();
 };
