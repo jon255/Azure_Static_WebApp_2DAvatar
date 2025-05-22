@@ -1,75 +1,21 @@
 let recognizer;
 let avatarSynthesizer;  // For Azure avatar TTS
-let avatarSessionStarted = false; // Track if the avatar session has started
+let avatarSessionStarted = false;
+let avatarSpeechQueue = []; // New: store text to speak until avatar is ready
 
-const startButton = document.getElementById('startButton');
-const stopButton = document.getElementById('stopButton');
-const statusDiv = document.getElementById('status');
-const remoteVideoDiv = document.getElementById('remoteVideo');
-
-const subscriptionKey = "CTj3XC7K184YwchY8V1LXntIskOYwzjJuskTtenuCVgdo13FVGfkJQQJ99BEACYeBjFXJ3w3AAAYACOGdCjM";
-const serviceRegion = "eastus";
-
-// ---- Streaming Speech Recognition ----
-
-function startStreamingRecognition() {
-    const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
-    speechConfig.speechRecognitionLanguage = 'en-US';
-
-    const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
-
-    recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
-
-    recognizer.recognizing = (s, e) => {
-        statusDiv.innerText = `Heard so far: ${e.result.text}`;
-    };
-
-    recognizer.recognized = (s, e) => {
-        if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
-            statusDiv.innerText = `Recognized: ${e.result.text}`;
-            sendTextToLLMAgent(e.result.text);
-        } else if (e.result.reason === SpeechSDK.ResultReason.NoMatch) {
-            statusDiv.innerText = "Speech not recognized.";
-        }
-    };
-
-    recognizer.canceled = (s, e) => {
-        statusDiv.innerText = `Recognition canceled: ${e.errorDetails}`;
-        recognizer.close();
-        recognizer = undefined;
-    };
-
-    recognizer.sessionStopped = (s, e) => {
-        statusDiv.innerText += "\nSession stopped.";
-        recognizer.close();
-        recognizer = undefined;
-    };
-
-    recognizer.startContinuousRecognitionAsync(
-        () => {
-            statusDiv.innerText = "Listening (streaming)...";
-        },
-        (err) => {
-            statusDiv.innerText = "Could not start recognition: " + err;
-            console.error(err);
-        }
-    );
-}
-
-function stopStreamingRecognition() {
-    if (recognizer) {
-        recognizer.stopContinuousRecognitionAsync(() => {
-            recognizer.close();
-            recognizer = undefined;
-            statusDiv.innerText = "Stopped listening.";
-        });
-    }
-}
-
-// ---- Azure Avatar TTS ----
+// ...rest of your code above...
 
 function initAvatarSynthesizer() {
-    if (avatarSynthesizer && avatarSessionStarted) return;
+    if (avatarSynthesizer && avatarSessionStarted) {
+        // Already started
+        // If there are queued texts, speak them
+        if (avatarSpeechQueue.length > 0) {
+            while (avatarSpeechQueue.length > 0) {
+                speakWithAvatar(avatarSpeechQueue.shift());
+            }
+        }
+        return;
+    }
 
     const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
     const videoFormat = new SpeechSDK.AvatarVideoFormat();
@@ -87,20 +33,22 @@ function initAvatarSynthesizer() {
     videoElement.style.borderRadius = '10px';
     remoteVideoDiv.appendChild(videoElement);
 
-    // Key line: assign the video element to avatarSynthesizer
     avatarSynthesizer.avatarVideoElement = videoElement;
 
-    // Optional: log avatar events
     avatarSynthesizer.avatarEventReceived = function (s, e) {
         console.log("Avatar event:", e.description);
     };
 
-    // ---- Start the avatar session! ----
     avatarSynthesizer.startAvatarAsync().then(
         (result) => {
             if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
                 avatarSessionStarted = true;
                 console.log("Avatar session started!");
+
+                // Speak any queued text
+                while (avatarSpeechQueue.length > 0) {
+                    speakWithAvatar(avatarSpeechQueue.shift());
+                }
             } else {
                 console.error("Avatar session NOT started. Reason:", result.reason);
             }
@@ -112,11 +60,11 @@ function initAvatarSynthesizer() {
 }
 
 function speakWithAvatar(text) {
-    // Wait for avatar session to start
     if (!avatarSynthesizer || !avatarSessionStarted) {
-        statusDiv.innerText = "Avatar not ready!";
-        // Optionally, try initializing again:
+        // Queue up text and try to (re)init the avatar
+        avatarSpeechQueue.push(text);
         initAvatarSynthesizer();
+        statusDiv.innerText = "Avatar not ready!";
         return;
     }
 
@@ -142,59 +90,3 @@ function speakWithAvatar(text) {
         }
     );
 }
-
-// ---- Send text to LLM/Foundry agent ----
-
-function sendTextToLLMAgent(text) {
-    fetch('/api/llmAgent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text })
-    })
-    .then(async response => {
-        const textResponse = await response.text();
-        if (!textResponse) throw new Error('Empty response from backend');
-        let data;
-        try {
-            data = JSON.parse(textResponse);
-        } catch {
-            throw new Error('Invalid JSON from backend: ' + textResponse);
-        }
-        return data;
-    })
-    .then(data => {
-        if (data && data.reply) {
-            // Avatar speaks the LLM/Foundry reply!
-            speakWithAvatar(data.reply);
-        } else if (data && data.error) {
-            statusDiv.innerText = "Agent error: " + data.error;
-        } else {
-            statusDiv.innerText = "No reply from agent.";
-        }
-    })
-    .catch(error => {
-        statusDiv.innerText = "Error contacting agent: " + error.message;
-        console.error('LLM/Agent error:', error);
-    });
-}
-
-// ---- Button Handlers ----
-
-startButton.onclick = function() {
-    startButton.disabled = true;
-    stopButton.disabled = false;
-    // Always (re)initialize avatar synthesizer before use!
-    initAvatarSynthesizer();
-    startStreamingRecognition();
-};
-
-stopButton.onclick = function() {
-    stopButton.disabled = true;
-    startButton.disabled = false;
-    stopStreamingRecognition();
-};
-
-// ---- Optionally, auto-init avatar on page load ----
-window.onload = function() {
-    initAvatarSynthesizer();
-};
