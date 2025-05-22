@@ -5,46 +5,47 @@ let recognizer;
 let avatarSynthesizer;
 let avatarSessionStarted = false;
 let avatarSpeechQueue = [];
+let isSpeaking = false; // Tracks if avatar is speaking
+let peerConnection;
 
 const startButton = document.getElementById('startButton');
 const stopButton  = document.getElementById('stopButton');
 const statusDiv   = document.getElementById('status');
 const remoteVideoDiv = document.getElementById('remoteVideo');
 
-// Clean up function
+// --- Update button label depending on state ---
+function updateStartButtonLabel() {
+    if (avatarSessionStarted) {
+        startButton.innerText = isSpeaking ? "Interrupt Avatar" : "Start Speaking";
+    } else {
+        startButton.innerText = "Start Speaking";
+    }
+}
 
-// Clean-up function: call before starting any new avatar session
+// Clean up function
 function cleanupAvatarSession() {
-    // Close synthesizer
     if (avatarSynthesizer) {
         avatarSynthesizer.close();
         avatarSynthesizer = null;
     }
-    // Close peer connection (if you're using WebRTC directly)
-    if (window.peerConnection) {
-        window.peerConnection.close();
-        window.peerConnection = null;
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
     }
-    // Remove video elements
     remoteVideoDiv.innerHTML = '';
-    // Reset flags and queues
     avatarSessionStarted = false;
     avatarSpeechQueue = [];
+    isSpeaking = false;
+    updateStartButtonLabel();
 }
 
-
-
-// Create Peer Connection ---
-
-let peerConnection; // Add this with your global vars!
-
+// Create Peer Connection
 function createPeerConnection() {
-    // Create WebRTC peer connection (using Google's public STUN server for demo)
     peerConnection = new RTCPeerConnection({
         iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
     });
 
-    // Handle incoming video and audio tracks from the avatar
+    // Video and audio handling
     peerConnection.ontrack = function(event) {
         if (event.track.kind === 'video') {
             let videoElem = document.querySelector("#remoteVideo video");
@@ -69,22 +70,15 @@ function createPeerConnection() {
         }
     };
 
-    // Add transceivers so we can receive audio and video
     peerConnection.addTransceiver('video', { direction: 'recvonly' });
     peerConnection.addTransceiver('audio', { direction: 'recvonly' });
 
     return peerConnection;
 }
 
-
-
-// --- Avatar Init ---
-
+// Avatar Init
 function initAvatarSynthesizer() {
-    if (avatarSynthesizer && avatarSessionStarted) {
-        // Already running
-        return;
-    }
+    if (avatarSynthesizer && avatarSessionStarted) return;
 
     statusDiv.innerText = "Initializing avatar...";
 
@@ -93,22 +87,17 @@ function initAvatarSynthesizer() {
     const avatarConfig = new SpeechSDK.AvatarConfig('lisa', 'casual-sitting', videoFormat);
 
     avatarSynthesizer = new SpeechSDK.AvatarSynthesizer(speechConfig, avatarConfig);
-
-    // Setup and assign the video element!
-    remoteVideoDiv.innerHTML = '';
-    // NOTE: Don't create a video element here; let peerConnection.ontrack handle it
-
     avatarSynthesizer.avatarEventReceived = function (s, e) {
         console.log("Avatar event:", e.description);
     };
 
-    // ----------- NEW: WebRTC Peer Connection -------------
     createPeerConnection();
     avatarSynthesizer.startAvatarAsync(peerConnection).then(
         (result) => {
             if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
                 avatarSessionStarted = true;
                 statusDiv.innerText = "Avatar ready!";
+                updateStartButtonLabel();
                 console.log("Avatar session started!");
                 // Speak any queued text
                 while (avatarSpeechQueue.length > 0) {
@@ -126,31 +115,40 @@ function initAvatarSynthesizer() {
     );
 }
 
-
 // --- TTS with Avatar ---
-
 function speakWithAvatar(text) {
     if (!avatarSynthesizer || !avatarSessionStarted) {
-        statusDiv.innerText = "Avatar not ready!";
+        statusDiv.innerText = "Avatar not ready (queuing)...";
+        avatarSpeechQueue.push(text);
+        if (!avatarSynthesizer) initAvatarSynthesizer();
         return;
     }
+
     const ttsVoice = 'en-US-AvaMultilingualNeural';
-    const spokenSsml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"
+    const spokenSsml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" 
         xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="en-US">
         <voice name="${ttsVoice}">${text}</voice>
     </speak>`;
+
+    isSpeaking = true; // Mark avatar as speaking
+    updateStartButtonLabel();
+
     avatarSynthesizer.speakSsmlAsync(
         spokenSsml,
         result => {
+            isSpeaking = false; // Done speaking
+            updateStartButtonLabel();
             if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
                 statusDiv.innerText = "Avatar spoke!";
-                console.log("Avatar spoke:", result.resultId);
+                // Optionally: start listening again here
+                startStreamingRecognition();
             } else {
                 statusDiv.innerText = "Avatar failed to speak!";
-                console.error("Speech synthesis failed:", result.errorDetails);
             }
         },
         error => {
+            isSpeaking = false; // Done on error
+            updateStartButtonLabel();
             statusDiv.innerText = "Error in avatar speech!";
             console.error("Error in speaking:", error);
         }
@@ -158,7 +156,6 @@ function speakWithAvatar(text) {
 }
 
 // --- LLM Agent ---
-
 function sendTextToLLMAgent(text) {
     fetch('/api/llmAgent', {
         method: 'POST',
@@ -193,14 +190,22 @@ function sendTextToLLMAgent(text) {
 }
 
 // --- Speech to Text ---
-
 function startStreamingRecognition() {
     const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
     speechConfig.speechRecognitionLanguage = 'en-US';
     const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
     recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
 
+    // Interrupt TTS when user starts speaking
     recognizer.recognizing = (s, e) => {
+        // If avatar is speaking, stop it!
+        if (isSpeaking && avatarSynthesizer) {
+            avatarSynthesizer.stopSpeakingAsync(() => {
+                isSpeaking = false;
+                updateStartButtonLabel();
+                statusDiv.innerText = "TTS interrupted by user speech. Listening...";
+            });
+        }
         statusDiv.innerText = `Heard so far: ${e.result.text}`;
     };
 
@@ -244,22 +249,40 @@ function stopStreamingRecognition() {
     }
 }
 
-// --- Button handlers ---
+// --- User wants to speak (button or mic) ---
+function userWantsToSpeak() {
+    if (avatarSynthesizer && isSpeaking) {
+        avatarSynthesizer.stopSpeakingAsync(() => {
+            isSpeaking = false;
+            updateStartButtonLabel();
+            statusDiv.innerText = "Avatar stopped. Listening...";
+            startStreamingRecognition();
+        });
+    } else {
+        startStreamingRecognition();
+    }
+    statusDiv.innerText = "Listening...";
+}
 
+// --- Button handlers ---
 startButton.onclick = function() {
     startButton.disabled = true;
     stopButton.disabled = false;
     cleanupAvatarSession();
     initAvatarSynthesizer();
-    startStreamingRecognition();
+    userWantsToSpeak();
+    updateStartButtonLabel();
 };
 
 stopButton.onclick = function() {
     stopButton.disabled = true;
     startButton.disabled = false;
     stopStreamingRecognition();
+    updateStartButtonLabel();
 };
 
+// Auto-init avatar on load
 window.onload = function() {
     initAvatarSynthesizer();
+    updateStartButtonLabel();
 };
