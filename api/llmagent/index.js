@@ -1,5 +1,5 @@
+// /api/llmAgent/index.js
 const axios = require('axios');
-
 module.exports = async function (context, req) {
     const userText = req.body && req.body.text;
     if (!userText) {
@@ -7,15 +7,13 @@ module.exports = async function (context, req) {
         return;
     }
 
-    // Get from environment for security
+    // Replace with your Azure OpenAI endpoint + key
     const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
     const apiKey = process.env.AZURE_OPENAI_API_KEY;
 
-    // Prepare the messages array for the conversation
     const messages = [
-        { role: "system", content: "You are a helpful assistant." },
+        { role: "system", content: "You are a helpful and friendly AI assistant." },
         { role: "user", content: userText }
-        // Optionally add chat history here!
     ];
 
     try {
@@ -23,10 +21,10 @@ module.exports = async function (context, req) {
             endpoint,
             {
                 messages: messages,
-                max_tokens: 1024,         // Adjust as needed
+                max_tokens: 1024,
                 temperature: 1.0,
-                top_p: 1.0
-                // "model": "gpt-4o",     // Optional: not always needed with Azure deployments
+                top_p: 1.0,
+                // model: "gpt-4o" // Add this if your deployment requires
             },
             {
                 headers: {
@@ -35,27 +33,13 @@ module.exports = async function (context, req) {
                 }
             }
         );
-
-        // Extract the assistant's reply
         const reply = response.data.choices?.[0]?.message?.content || "No response from agent.";
-
-        context.res = {
-            status: 200,
-            body: { reply }
-        };
-
+        context.res = { status: 200, body: { reply } };
     } catch (error) {
-        // Improved error logging: logs both error and full API response
-        context.log('OpenAI API error:', error.message);
-        if (error.response) {
-            context.log('OpenAI API error response data:', error.response.data);
-        }
+        context.log('OpenAI API error:', error.message, error.response?.data);
         context.res = {
             status: 500,
-            body: {
-                error: error.message,
-                details: error.response?.data || "Request failed"
-            }
+            body: { error: error.message, details: error.response?.data || "Request failed" }
         };
     }
 };
