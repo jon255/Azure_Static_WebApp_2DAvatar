@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "API backend for Azure Static Web App - Speech to Text",
   "main": "index.js",
+  "type": "commonjs",
   "dependencies": {
+    "@azure/ai-projects": "^1.0.0-beta.10",
+    "@azure/identity": "^4.0.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.31.0",
     "axios": "^1.6.0"
   },
