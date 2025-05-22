@@ -45,7 +45,11 @@ module.exports = async function (context, req) {
         };
 
     } catch (error) {
-        context.log('OpenAI API error:', error.message, error.response?.data);
+        // Improved error logging: logs both error and full API response
+        context.log('OpenAI API error:', error.message);
+        if (error.response) {
+            context.log('OpenAI API error response data:', error.response.data);
+        }
         context.res = {
             status: 500,
             body: {
