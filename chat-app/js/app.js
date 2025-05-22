@@ -11,30 +11,25 @@ const remoteVideoDiv = document.getElementById('remoteVideo');
 
 // WARNING: Never hardcode keys in production!
 const subscriptionKey = "Cn6UKwJAzBFFb6r51vwpQrAeJK1UsfzfMQpQUpOFw8D3n7zeHyBmJQQJ99BBACHYHv6XJ3w3AAAYACOG2jVR";    // Replace with your Speech key
-const serviceRegion = "eastus2";   // Replace with your Azure region
+const serviceRegion = "eastus2";          // Replace with your Azure region
 
 // ---- Streaming Speech Recognition ----
 
 function startStreamingRecognition() {
-    // Initialize speech config
     const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
     speechConfig.speechRecognitionLanguage = 'en-US';
 
-    // Use default mic as input
     const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
 
     recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
 
-    // Partial (interim) results
     recognizer.recognizing = (s, e) => {
         statusDiv.innerText = `Heard so far: ${e.result.text}`;
     };
 
-    // Final results
     recognizer.recognized = (s, e) => {
         if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
             statusDiv.innerText = `Recognized: ${e.result.text}`;
-            // Instead of speaking immediately, send to backend LLM/agent!
             sendTextToLLMAgent(e.result.text);
         } else if (e.result.reason === SpeechSDK.ResultReason.NoMatch) {
             statusDiv.innerText = "Speech not recognized.";
@@ -79,16 +74,13 @@ function stopStreamingRecognition() {
 function initAvatarSynthesizer() {
     if (avatarSynthesizer) return;
 
-    // WARNING: Do NOT use hardcoded keys in production!
     const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
-
-    // You can change the avatar and style as needed:
     const videoFormat = new SpeechSDK.AvatarVideoFormat();
     const avatarConfig = new SpeechSDK.AvatarConfig('lisa', 'casual-sitting', videoFormat);
 
     avatarSynthesizer = new SpeechSDK.AvatarSynthesizer(speechConfig, avatarConfig);
 
-    // Set up video element for avatar output (if supported)
+    // Setup and assign the video element!
     setupAvatarVideoElement();
 }
 
@@ -101,14 +93,20 @@ function setupAvatarVideoElement() {
     videoElement.style.width = '100%';
     videoElement.style.borderRadius = '10px';
     remoteVideoDiv.appendChild(videoElement);
-    // Some SDK versions may allow: avatarSynthesizer.avatarVideoElement = videoElement;
+
+    // ----- KEY LINE: Assign the video element -----
+    avatarSynthesizer.avatarVideoElement = videoElement;
+
     return videoElement;
 }
 
 function speakWithAvatar(text) {
     if (!avatarSynthesizer) {
-        statusDiv.innerText = "Avatar not ready!";
-        return;
+        initAvatarSynthesizer(); // Just in case
+        if (!avatarSynthesizer) {
+            statusDiv.innerText = "Avatar not ready!";
+            return;
+        }
     }
 
     const ttsVoice = 'en-US-AvaMultilingualNeural'; // Customize as needed
@@ -143,7 +141,6 @@ function sendTextToLLMAgent(text) {
         body: JSON.stringify({ text: text })
     })
     .then(async response => {
-        // Step F: Robustly handle empty or invalid JSON
         const textResponse = await response.text();
         if (!textResponse) throw new Error('Empty response from backend');
         let data;
@@ -157,7 +154,6 @@ function sendTextToLLMAgent(text) {
     .then(data => {
         if (data && data.reply) {
             // Avatar speaks the LLM/Foundry reply!
-            if (!avatarSynthesizer) initAvatarSynthesizer();
             speakWithAvatar(data.reply);
         } else if (data && data.error) {
             statusDiv.innerText = "Agent error: " + data.error;
