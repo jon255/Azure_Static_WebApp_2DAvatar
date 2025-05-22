@@ -1,17 +1,14 @@
-// Make sure the Azure Speech SDK script is loaded in your index.html:
-// <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
-
 let recognizer;
 let avatarSynthesizer;  // For Azure avatar TTS
+let avatarSessionStarted = false; // Track if the avatar session has started
 
 const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
 const statusDiv = document.getElementById('status');
 const remoteVideoDiv = document.getElementById('remoteVideo');
 
-// WARNING: Never hardcode keys in production!
-const subscriptionKey = "CTj3XC7K184YwchY8V1LXntIskOYwzjJuskTtenuCVgdo13FVGfkJQQJ99BEACYeBjFXJ3w3AAAYACOGdCjM";    // Replace with your Speech key
-const serviceRegion = "eastus";          // Replace with your Azure region
+const subscriptionKey = "CTj3XC7K184YwchY8V1LXntIskOYwzjJuskTtenuCVgdo13FVGfkJQQJ99BEACYeBjFXJ3w3AAAYACOGdCjM";
+const serviceRegion = "eastus";
 
 // ---- Streaming Speech Recognition ----
 
@@ -72,7 +69,7 @@ function stopStreamingRecognition() {
 // ---- Azure Avatar TTS ----
 
 function initAvatarSynthesizer() {
-    if (avatarSynthesizer) return;
+    if (avatarSynthesizer && avatarSessionStarted) return;
 
     const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
     const videoFormat = new SpeechSDK.AvatarVideoFormat();
@@ -81,10 +78,6 @@ function initAvatarSynthesizer() {
     avatarSynthesizer = new SpeechSDK.AvatarSynthesizer(speechConfig, avatarConfig);
 
     // Setup and assign the video element!
-    setupAvatarVideoElement();
-}
-
-function setupAvatarVideoElement() {
     remoteVideoDiv.innerHTML = '';
     const videoElement = document.createElement('video');
     videoElement.autoplay = true;
@@ -94,22 +87,40 @@ function setupAvatarVideoElement() {
     videoElement.style.borderRadius = '10px';
     remoteVideoDiv.appendChild(videoElement);
 
-    // ----- KEY LINE: Assign the video element -----
+    // Key line: assign the video element to avatarSynthesizer
     avatarSynthesizer.avatarVideoElement = videoElement;
 
-    return videoElement;
+    // Optional: log avatar events
+    avatarSynthesizer.avatarEventReceived = function (s, e) {
+        console.log("Avatar event:", e.description);
+    };
+
+    // ---- Start the avatar session! ----
+    avatarSynthesizer.startAvatarAsync().then(
+        (result) => {
+            if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
+                avatarSessionStarted = true;
+                console.log("Avatar session started!");
+            } else {
+                console.error("Avatar session NOT started. Reason:", result.reason);
+            }
+        },
+        (err) => {
+            console.error("Avatar session failed to start:", err);
+        }
+    );
 }
 
 function speakWithAvatar(text) {
-    if (!avatarSynthesizer) {
-        initAvatarSynthesizer(); // Just in case
-        if (!avatarSynthesizer) {
-            statusDiv.innerText = "Avatar not ready!";
-            return;
-        }
+    // Wait for avatar session to start
+    if (!avatarSynthesizer || !avatarSessionStarted) {
+        statusDiv.innerText = "Avatar not ready!";
+        // Optionally, try initializing again:
+        initAvatarSynthesizer();
+        return;
     }
 
-    const ttsVoice = 'en-US-AvaMultilingualNeural'; // Customize as needed
+    const ttsVoice = 'en-US-AvaMultilingualNeural';
     const spokenSsml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="en-US">
                         <voice name="${ttsVoice}">${text}</voice>
                     </speak>`;
@@ -172,6 +183,8 @@ function sendTextToLLMAgent(text) {
 startButton.onclick = function() {
     startButton.disabled = true;
     stopButton.disabled = false;
+    // Always (re)initialize avatar synthesizer before use!
+    initAvatarSynthesizer();
     startStreamingRecognition();
 };
 
@@ -179,4 +192,9 @@ stopButton.onclick = function() {
     stopButton.disabled = true;
     startButton.disabled = false;
     stopStreamingRecognition();
+};
+
+// ---- Optionally, auto-init avatar on page load ----
+window.onload = function() {
+    initAvatarSynthesizer();
 };
