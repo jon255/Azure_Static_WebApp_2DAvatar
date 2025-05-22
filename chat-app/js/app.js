@@ -27,8 +27,14 @@ function startStreamingRecognition() {
 
     recognizer.recognized = (s, e) => {
         if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+            console.log("Recognized text:", e.result.text); // <--- Add logging
             statusDiv.innerText = `Recognized: ${e.result.text}`;
-            sendTextToLLMAgent(e.result.text);
+            // Only send non-empty text
+            if (e.result.text && e.result.text.trim() !== "") {
+                sendTextToLLMAgent(e.result.text);
+            } else {
+                statusDiv.innerText = "No speech detected, try again!";
+            }
         } else if (e.result.reason === SpeechSDK.ResultReason.NoMatch) {
             statusDiv.innerText = "Speech not recognized.";
         }
@@ -158,6 +164,12 @@ function speakWithAvatar(text) {
 // ---- Send text to LLM/Foundry agent ----
 
 function sendTextToLLMAgent(text) {
+    // PREVENT sending empty or whitespace-only strings!
+    if (!text || text.trim() === "") {
+        statusDiv.innerText = "No text recognized. Try speaking again!";
+        return;
+    }
+
     fetch('/api/llmAgent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
